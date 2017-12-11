@@ -5,10 +5,10 @@ class NaiveBayes(object):
     朴素贝叶斯 情感二分类器
     '''
     def __init__(self,posPath,negPath):
-        self.Dict,self.pos_num,self.neg_num=self._data_deal(posPath,negPath)
+        self.Dict,self.pos_num,self.neg_num,self.sumPosNum,self.sumNegNum=self._data_deal(posPath,negPath)
         self.PosY=(float(self.pos_num)+1.0)/(float(self.pos_num+self.neg_num)+2.0)
         self.NegY=(float(self.pos_num)+1.0)/(float(self.pos_num+self.neg_num)+2.0)
-        # self.Train(posPath,negPath)
+        self.Train(posPath,negPath)
 
     def _data_deal(self,pos_path,neg_path):
         '''
@@ -22,6 +22,8 @@ class NaiveBayes(object):
         # 每个词的id 从1开始 0为‘None’代表未识别词
         id=1
         pos_num=0
+        sumPosNum=0
+        sumNegNum=0
         with open(pos_path,'r') as pos:
             for line in pos:
                 pos_num+=1
@@ -31,9 +33,11 @@ class NaiveBayes(object):
                     # 先判断词word是否存在于字典中
                     if word and word not in Dict: # 如果word不在字典中
                         Dict[word]={"id":id,"pos_count":1,"neg_count":0,"sum_count":1}
+                        sumPosNum+=1
                         id+=1
                     elif word in Dict:# 若word已经在dict中，则
                         value=Dict[word]
+                        sumPosNum+=1
                         value["pos_count"]+=1
                         value["sum_count"]+=1
         neg_num=0
@@ -45,13 +49,15 @@ class NaiveBayes(object):
                 for word in line.split(" "):
                     # 先判断词word是否存在于字典中
                     if word and word not in Dict : # 如果word不在字典中
+                        sumNegNum+=1
                         Dict[word]={"id":id,"pos_count":0,"neg_count":1,"sum_count":1}
                         id+=1
                     elif word in Dict:# 若word已经在dict中，则
                         value=Dict[word]
+                        sumNegNum+=1
                         value["neg_count"]+=1
                         value["sum_count"]+=1
-        return Dict,pos_num,neg_num
+        return Dict,pos_num,neg_num,sumPosNum,sumPosNum
 
     def Classify(self,sentence):
         '''
@@ -64,17 +70,17 @@ class NaiveBayes(object):
         neg_pro=1.0
         for word in sentence.split(" "):
             if word in self.Dict:
-                pos_neg=(float(self.Dict[word]["pos_count"]) + self.Dict[word]["neg_count"] + 2)
-                pos_=float(self.Dict[word]["pos_count"]+1)/pos_neg
-                neg_=float(self.Dict[word]["neg_count"]+1)/pos_neg
+                # pos_neg=(float(self.Dict[word]["pos_count"]) + self.Dict[word]["neg_count"] + 2)
+                pos_=float(self.Dict[word]["pos_count"]+1)/float(self.sumPosNum)
+                neg_=float(self.Dict[word]["neg_count"]+1)/float(self.sumNegNum)
                 pos_pro+=math.log(pos_)
                 neg_pro+=math.log(neg_)
         fin_pos=math.log(self.PosY)+pos_pro
         fin_neg=math.log(self.NegY)+neg_pro
         if fin_pos>=fin_neg:
-            print(fin_pos, fin_neg,1)
+           return 1
         else:
-            print(fin_pos, fin_neg,0)
+            return 0
 
     def Train(self,pos_path,neg_path):
         '''
@@ -83,9 +89,25 @@ class NaiveBayes(object):
         :param neg_path: 
         :return: 
         '''
-        with open(neg_path,'r') as f:
-            for sent in f:
-                self.Classify(sent)
+        correctPos=0
+        correctNeg=0
+        with open(pos_path,'r') as p:
+            for sent in p:
+                res=self.Classify(sent)
+                if res==1:
+                    correctPos+=1
+
+        with open(neg_path,'r') as n:
+            for sent in n:
+                res=self.Classify(sent)
+                if res==0:
+                    correctNeg+=1
+
+        posAcc=float(correctPos)/float(self.pos_num)
+        negAcc=float(correctNeg)/float(self.neg_num)
+        allAcc=(posAcc+negAcc)/2.0
+        print(posAcc,negAcc,allAcc)
+
     def Predict(self):
         '''
         从
@@ -99,4 +121,4 @@ class NaiveBayes(object):
 if __name__ == '__main__':
 
     na=NaiveBayes('../Data/pos.txt','../Data/neg.txt')
-    na.Predict()
+    # na.Predict()
