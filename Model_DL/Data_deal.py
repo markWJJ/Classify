@@ -20,6 +20,7 @@ class DataDeal(object):
         elif flag=="test" or flag=="train":
             self.vocab=pickle.load(open(PATH+"/vocab.p",'rb'))
         self.index=0
+        self.getAllarray()
     def _get_vocab(self,*args):
         '''
         构造字典
@@ -81,45 +82,50 @@ class DataDeal(object):
 
         return new_Q,new_A,new_label
 
-    def next_batch(self):
-        '''
-        获取训练机的下一个batch
-        :return: 
-        '''
-        X_list=[]
-        Y_list=[]
-        X_seq_list=[]
-        file_size=0
-        with open(self.posTrainPath,'r') as file:
+    def getAllarray(self):
+        X_list = []
+        Y_list = []
+        X_seq_list = []
+        file_size = 0
+        with open(self.posTrainPath, 'r') as file:
             for sentence in file:
+                file_size+=1
                 Y_list.append(1)
                 # 获取句子的id表示，并规范长度，不够的由0代替
-                X_vec,X_len=self._sent2vec(sentence,self.max_len)
+                X_vec, X_len = self._sent2vec(sentence, self.max_len)
                 X_list.append(X_vec)
                 X_seq_list.append(X_len)
         with open(self.negTrainPath, 'r') as file:
             for sentence in file:
+                file_size+=1
                 Y_list.append(0)
                 # 获取句子的id表示，并规范长度，不够的由0代替
                 X_vec, X_len = self._sent2vec(sentence, self.max_len)
                 X_list.append(X_vec)
                 X_seq_list.append(X_len)
+        self.file_size=file_size
+        X_array = np.array(X_list)
+        X_seq_array = np.array(X_seq_list)
+        Y_array = np.array(Y_list)
+        self.X_array, self.X_seq_array, self.Y_array = shuffle(X_array, X_seq_array, Y_array)
 
-        X_array=np.array(X_list)
-        X_seq_array=np.array(X_seq_list)
-        Y_array=np.array(Y_list)
-        X_array,X_seq_array,Y_array=shuffle(X_array,X_seq_array,Y_array)
-        num_iter=int(file_size/self.batch_size)
+    def next_batch(self):
+        '''
+        获取训练机的下一个batch
+        :return: 
+        '''
+
+        num_iter=int(self.file_size/self.batch_size)
         if self.index<=num_iter:
-            X_arrat_batch=X_array[self.index*self.batch_size:(self.index+1)*self.batch_size]
-            Y_array_batch=Y_array[self.index*self.batch_size:(self.index+1)*self.batch_size]
-            X_seq_array_batch=X_seq_array[self.index*self.batch_size:(self.index+1)*self.batch_size]
+            X_arrat_batch=self.X_array[self.index*self.batch_size:(self.index+1)*self.batch_size]
+            Y_array_batch=self.Y_array[self.index*self.batch_size:(self.index+1)*self.batch_size]
+            X_seq_array_batch=self.X_seq_array[self.index*self.batch_size:(self.index+1)*self.batch_size]
             self.index+=1
         else:
             self.index=0
-            X_arrat_batch=X_array[0:self.batch_size]
-            Y_array_batch=Y_array[0:self.batch_size]
-            X_seq_array_batch = X_seq_array[0:self.batch_size]
+            X_arrat_batch=self.X_array[0:self.batch_size]
+            Y_array_batch=self.Y_array[0:self.batch_size]
+            X_seq_array_batch = self.X_seq_array[0:self.batch_size]
         return X_arrat_batch,Y_array_batch,X_seq_array_batch
 
     def get_dev(self):

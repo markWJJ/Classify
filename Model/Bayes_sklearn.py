@@ -6,6 +6,7 @@ from sklearn import svm
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.externals import joblib
 import numpy as np
+import pickle
 
 
 class BayesSklearn(object):
@@ -14,8 +15,8 @@ class BayesSklearn(object):
         self.wordDict={"None":0}
         self.bayes=MultinomialNB()
         self.svc=svm.SVC(C=5.0, kernel='rbf', degree=3, gamma='auto',max_iter=10000)
-        self.kn=KNeighborsClassifier(5)
-
+        self.knn=KNeighborsClassifier()
+        pickle.dump(self.wordDict,open("wordDict.p",'wb'))
     def _data_deal(self,*args):
         '''
         数据预处理
@@ -69,19 +70,59 @@ class BayesSklearn(object):
         '''
         classifer = self.bayes
         returnX,returnY,returnXWord=self._data_deal(*args)
-        # X_array=self._convert_array(returnX,8)
         Y_array=np.array(returnY)
-        countvec=CountVectorizer()
-        tfvec=TfidfVectorizer()
-        X_array=tfvec.fit_transform(returnXWord)
-        # X_array=tfvec.fit_transform(returnXWord)
-        Xtrain,Xdev,Ytrain,Ydev=train_test_split(X_array,Y_array,test_size=0.2)
+        classiferMode="bayes"
+
+        if classiferMode=="bayes":
+            countvec=CountVectorizer()
+            tfvec=TfidfVectorizer()
+            X_array=tfvec.fit_transform(returnXWord)
+            # X_array=tfvec.fit_transform(returnXWord)
+            Xtrain,Xdev,Ytrain,Ydev=train_test_split(X_array,Y_array,test_size=0.2)
+            classifer.fit(Xtrain,Ytrain)
+            joblib.dump(classifer,"bayesClassiferModel.m")
+            joblib.dump(tfvec,"bayesTfidvector.m")
+            print("bayes train acc:",classifer.score(Xtrain, Ytrain))
+            print("bayes test acc:",classifer.score(Xdev, Ydev))
+
+        elif classiferMode=="svm":
+            X_array=self._convert_array(returnX,8)
+            Xtrain,Xdev,Ytrain,Ydev=train_test_split(X_array,Y_array,test_size=0.2)
+            self.svc.fit(Xtrain,Ytrain)
+            joblib.dump(self.svc,"svmClassiferModel.m")
+            print("svm train acc:", self.svc.score(Xtrain, Ytrain))
+            print("svm test acc:", self.svc.score(Xdev, Ydev))
+
+        elif classiferMode=="knn":
+            X_array = self._convert_array(returnX, 8)
+            Xtrain, Xdev, Ytrain, Ydev = train_test_split(X_array, Y_array, test_size=0.2)
+            self.knn.fit(Xtrain, Ytrain)
+            joblib.dump(self.svc,"knnClassiferModel.m")
+            print("knn train acc:", self.knn.score(Xtrain, Ytrain))
+            print("knn test acc:", self.knn.score(Xdev, Ydev))
 
 
-        classifer.fit(Xtrain,Ytrain)
-        joblib.dump(classifer,"ClassiferModel.m")
-        print("class acc:",classifer.score(Xtrain, Ytrain))
-        print("class acc:",classifer.score(Xdev, Ydev))
+    def predict_pre_deal(self,sentence,max_len):
+        '''
+        预测模块预处理
+        :param sentence: 
+        :return: 
+        '''
+        wordDict=pickle.load(open("./wordDict.p",'rb'))
+        sentences=sentence.strip().split(" ")
+        sentId=[]
+        for word in sentences:
+            if word in wordDict:
+                sentId.append(wordDict[word])
+            else:
+                sentId.append(0)
+        if len(sentId)>=max_len:
+            new_sent=sentId[:max_len]
+        else:
+            new_sent=sentId[:]
+            new_sent.extend([0]*(max_len-len(sentId)))
+        new_sent=np.array(new_sent)
+        return new_sent
 
     def predict(self):
         '''
@@ -89,17 +130,26 @@ class BayesSklearn(object):
         :param sentence: 
         :return: 
         '''
-        classifer=joblib.load("./ClassiferModel.m")
+        mode="bayes"
+        classifer=joblib.load("./bayesClassiferModel.m")
+        tfvec=joblib.load("./bayesTfidvector.m")
+        print(tfvec)
 
         while True:
             sentence=input("输入：")
-            tfvec = TfidfVectorizer()
-            countvec = CountVectorizer()
-            # X_array = tfvec.fit_transform(sentence)
-            X_array = countvec.fit_transform(sentence)
+            if mode=="bayes":
+                # tfvec = TfidfVectorizer()
+                # countvec = CountVectorizer()
+                # X_array = tfvec.fit_transform(sentence)
+                X_array = tfvec.fit_transform(sentence)
 
-            result=classifer.predict(X_array)
-            print(result)
+                result=classifer.predict(X_array)
+                print(result)
+
+            # X_vec=self.predict_pre_deal(sentence,8)
+            # X_vec=np.reshape(X_vec,[1,X_vec.shape[0]])
+            # print(classifer.predict(X_vec))
+
 
 
 if __name__ == '__main__':

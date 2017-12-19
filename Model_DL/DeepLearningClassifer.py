@@ -1,7 +1,7 @@
 import tensorflow as tf
 from Model_DL import Data_deal
 import numpy as np
-
+import time
 class Classifer(object):
 
     def __init__(self,vocab_size,init_dim,hidden_dim,max_len):
@@ -13,7 +13,7 @@ class Classifer(object):
         self.initModel()
         logit = self.Encoder()
         self.softlogit,self.loss=self.Softmax(logit)
-        self.optim=tf.train.AdamOptimizer(0.05).minimize(self.loss)
+        self.optim=tf.train.AdamOptimizer(0.7).minimize(self.loss)
 
     def initModel(self):
         '''
@@ -31,7 +31,7 @@ class Classifer(object):
         编码层，将词向量通过lstm 或者 cnn 进行编码
         :return: 
         '''
-        encoderMode="lstm"
+        encoderMode="cnn"
         input_list=tf.unstack(self.input_array,self.max_len,1)
         if encoderMode=="lstm":
             with tf.variable_scope("lstm"):
@@ -87,26 +87,46 @@ class Classifer(object):
 
     def Train(self,dd):
 
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            for i in range(1000):
+        config = tf.ConfigProto(device_count={"CPU": 8},  # limit to num_cpu_core CPU usage
+                                inter_op_parallelism_threads=8,
+                                intra_op_parallelism_threads=8,
+                                log_device_placement=False)
+        X_all,X_seq_all,Y_all=dd.X_array,dd.X_seq_array,dd.Y_array
+        saver = tf.train.Saver()
+        with tf.Session(config=config) as sess:
+            init_loss = 999
+            init_acc = 0.0
+            saver.restore(sess,"./model.ckpt")
+            # sess.run(tf.global_variables_initializer())
+            for i in range(5000):
                 X_batch,Y_batch,X_seq_batch=dd.next_batch()
                 soft,loss,_=sess.run([self.softlogit,self.loss,self.optim],feed_dict={self.input:X_batch,
                                                                   self.input_seq:X_seq_batch,
                                                                   self.Y:Y_batch})
                 soft=np.argmax(soft,1)
                 acc=float(sum([1 for e,e1 in zip(soft,Y_batch) if e==e1]))/float(len(Y_batch))
-                print(loss,acc)
+                if i%100==0:
+                    if loss<init_loss and acc>init_acc:
 
-
-
+                        init_loss=loss
+                        init_acc=acc
+                        print(loss, acc)
+                        saver.save(sess,"model.ckpt")
+                        print("save")
+            softAll=sess.run(self.softlogit,feed_dict={self.input:X_all,
+                                               self.input_seq:X_seq_all,
+                                               self.Y:Y_all})
+            softAll=np.argmax(softAll,1)
+            accAll=float(sum([1 for e,e1 in zip(softAll,Y_all) if e==e1]))/float(len(Y_all))
+            print(accAll)
 
 
 
 
 if __name__ == '__main__':
+    startTime=time.time()
     max_len=30
-    batch_size=10
+    batch_size=20
     dd = Data_deal.DataDeal(negTrainPath='../Data/neg.txt', posTrainPath="../Data/pos.txt",
                   negdevPath="../Data/neg_dev.txt", posdevPath="../Data/pos_dev.txt",
                   flag="train_new", max_len=max_len, batch_size=batch_size)
@@ -115,3 +135,5 @@ if __name__ == '__main__':
     hidden_dim=100
     classifer=Classifer(vocab_size=vocab_size,init_dim=init_dim,hidden_dim=hidden_dim,max_len=max_len)
     classifer.Train(dd)
+    endTime=time.time()
+    print("all Time",endTime-startTime)
